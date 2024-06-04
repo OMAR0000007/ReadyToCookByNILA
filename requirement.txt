@@ -1,0 +1,7 @@
+streamlit
+json
+os
+csv
+datetime
+fpdf
+pandas
