@@ -1,99 +1,90 @@
 import streamlit as st
 import json
 import os
-import csv
 from datetime import datetime
-from fpdf import FPDF
 import pandas as pd
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import fitz
+import csv
 
-# Path to the JSON file
-data_file = "products.json"
+# Global variables
 categories = {}
 
-# Function to load categories and items from the JSON file
+# Load categories and items from the JSON file
 def load_data():
     global categories
+    data_file = "products.json"
     if os.path.exists(data_file):
-        try:
-            with open(data_file, 'r', encoding='utf-8') as file:
-                categories = json.load(file)
-        except json.JSONDecodeError:
-            categories = {}
+        with open(data_file, 'r', encoding='utf-8') as file:
+            categories = json.load(file)
 
-# Function to save categories and items to the JSON file
+# Save categories and items to the JSON file
 def save_data():
+    data_file = "products.json"
     with open(data_file, 'w', encoding='utf-8') as file:
         json.dump(categories, file, ensure_ascii=False, indent=4)
 
-# Load existing data
-load_data()
-
-def get_next_bill_number():
-    if os.path.exists('bill_number.txt'):
-        with open('bill_number.txt', 'r') as file:
-            bill_number = int(file.read().strip())
-    else:
-        bill_number = 20240001
-    bill_number += 1
-    with open('bill_number.txt', 'w') as file:
-        file.write(str(bill_number))
-    return bill_number
-
-class PDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'Customer Bill', 0, 1, 'C')
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, "R e a d y   t o   C o o k   b y   ' N I L A '", 0, 1, 'C')
-        self.set_font('Arial', '', 10)
-        self.cell(0, 10, "E-mail: readytocook1711@gmail.com", 0, 1, 'C')
-        self.cell(0, 10, "Contact Number: 01842-235229, 01611-235228", 0, 1, 'C')
-
-def generate_pdf(bill_number, customer_info, items, total_price, discount, delivery_charge, grand_total):
+# Generate PDF bill
+def generate_pdf(bill_number, customer_info, items, totals):
     customer_mobile = customer_info['mobile']
     pdf_file = f'bill_{bill_number}_{customer_mobile}.pdf'
+    document = fitz.open()
+    page = document.new_page()
+    width, height = fitz.paper_size("letter")
 
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font('Arial', '', 12)
+    # Define the positions and rectangle for text
+    y_position = height - 20
 
-    pdf.cell(0, 10, "========================================================================", 0, 1)
-    pdf.cell(0, 10, f"Bill Number: {bill_number}", 0, 1)
-    pdf.cell(0, 10, f"Customer Unique Code: {customer_info['unique_code']}", 0, 1)
-    pdf.cell(0, 10, "---------------------------------------------------------------------------------------", 0, 1)
-    pdf.cell(0, 10, f"Date: {customer_info['date']}", 0, 1)
-    pdf.cell(0, 10, f"Customer Name: {customer_info['name']}", 0, 1)
-    pdf.cell(0, 10, f"Customer Mobile Number: {customer_mobile}", 0, 1)
-    pdf.cell(0, 10, f"Customer Address: {customer_info['address']}", 0, 1)
+    # Title
+    page.insert_text((250, 0), "Customer Bill", fontsize=16)
+    page.insert_text((200, 20), "Ready to Cook by 'NILA'", fontsize=12)
+    page.insert_text((201, 40), "E-mail: readytocook1711@gmail.com", fontsize=12)
+    page.insert_text((170, 60), "Contact Number: 01842-235229, 01611-235228", fontsize=12)
+    y_position -= 30
 
+    # Bill details
+    page.insert_text((30, 100), "========================================================================")
+    page.insert_text((30, 120), f"Bill Number: {bill_number}")
+    page.insert_text((350, 120), f"Customer Unique Code: {customer_info['unique_code']}")
+    page.insert_text((30, 140), "-------------------------------------------------------------------------------------------------------------------------------------------")
+    page.insert_text((30, 160), f"Date: {customer_info['date']}")
+    page.insert_text((30, 180), f"Customer Name: {customer_info['name']}")
+    page.insert_text((30, 200), f"Customer Mobile Number: {customer_mobile}")
+    page.insert_text((30, 220), f"Customer Address: {customer_info['address']}")
+    page.insert_text((30, 240), "-------------------------------------------------------------------------------------------------------------------------------------------")
+
+    # Headers
     headers = ["Category", "Item", "Unit Price", "Quantity", "Total Price"]
-    header_widths = [40, 60, 40, 30, 30]
-
+    header_x = [30, 100, 350, 425, 500]
     for i, header in enumerate(headers):
-        pdf.cell(header_widths[i], 10, header, 1)
+        page.insert_text((header_x[i], 260), header, fontsize=12)
 
-    pdf.ln()
-
+    # Items
+    h = 280
     for item in items:
         for i, value in enumerate(item):
-            pdf.cell(header_widths[i], 10, str(value), 1)
-        pdf.ln()
+            page.insert_text((header_x[i], h), str(value), fontsize=12)
+        h += 20
 
-    pdf.cell(0, 10, "---------------------------------------------------------------------------------------", 0, 1)
-    pdf.cell(0, 10, f"Subtotal: {total_price} Tk", 0, 1)
-    pdf.cell(0, 10, f"Discount: {discount} Tk", 0, 1)
-    pdf.cell(0, 10, f"Delivery Charge: {delivery_charge} Tk", 0, 1)
-    pdf.cell(0, 10, f"Payment Method: {customer_info['payment_method']}", 0, 1)
-    pdf.cell(0, 10, f"Grand Total: {grand_total} Tk", 0, 1)
+    # Summary
+    page.insert_text((30, 500), "-------------------------------------------------------------------------------------------------------------------------------------------")
+    page.insert_text((30, 520), f"Subtotal: {totals['subtotal']} Tk")
+    page.insert_text((30, 540), f"Discount: {totals['discount']} Tk")
+    page.insert_text((30, 560), f"Delivery Charge: {totals['delivery_charge']} Tk")
+    page.insert_text((350, 560), f"Payment Method: {totals['payment_method']}")
+    page.insert_text((30, 600), f"Grand Total: {totals['grand_total']} Tk")
 
-    pdf.cell(0, 10, "Please check your products in front of the delivery man!", 0, 1)
-    pdf.cell(0, 10, "No complaint will be accepted later!!", 0, 1)
-    pdf.cell(0, 10, "THANK YOU!!!", 0, 1)
+    # Note
+    page.insert_text((150, 650), "Please check your products in front of the delivery man!")
+    page.insert_text((190, 670), "No complaint will be accepted later!!")
+    page.insert_text((250, 690), "THANK YOU!!!")
 
-    pdf.output(pdf_file)
+    document.save(pdf_file)
     return pdf_file
 
-def save_to_csv(items, discount, grand_total, payment_method, unique_code):
+# Save to CSV
+def save_to_csv(items, totals, customer_info):
     file_exists = os.path.exists('sales_data.csv')
     with open('sales_data.csv', 'a', newline='', encoding="utf-8") as file:
         writer = csv.writer(file)
@@ -103,163 +94,125 @@ def save_to_csv(items, discount, grand_total, payment_method, unique_code):
                 "Quantity", "Total Price", "Discount", "Grand Total", "Payment Method", "Customer Unique Code"
             ])
         for item in items:
-            writer.writerow(item + [discount, grand_total, payment_method, unique_code])
+            writer.writerow(item + [totals['discount'], totals['grand_total'], totals['payment_method'], customer_info['unique_code']])
 
-def save_customer_info(unique_code, customer_info):
-    customers_data = {}
-
-    if os.path.exists('customers.json'):
-        try:
-            with open('customers.json', 'r', encoding='utf-8') as file:
-                customers_data = json.load(file)
-        except json.JSONDecodeError:
-            customers_data = {}
-
-    customers_data[unique_code] = customer_info
-
-    with open('customers.json', 'w', encoding='utf-8') as file:
-        json.dump(customers_data, file, ensure_ascii=False, indent=4)
-
-def save_bill_and_data(bill_number, customer_info, items, total_price, discount, delivery_charge, grand_total):
-    unique_code = customer_info['unique_code']
-    customer_info['total_spend'] = total_price
-
-    customers_data = {}
-    if os.path.exists('customers.json'):
-        try:
-            with open('customers.json', 'r', encoding='utf-8') as file:
-                customers_data = json.load(file)
-        except json.JSONDecodeError:
-            customers_data = {}
-
-    if unique_code in customers_data:
-        customers_data[unique_code]['total_spend'] += total_price
-    else:
-        customers_data[unique_code] = customer_info
-
-    with open('customers.json', 'w', encoding='utf-8') as file:
-        json.dump(customers_data, file, ensure_ascii=False, indent=4)
-
-    pdf_file = generate_pdf(bill_number, customer_info, items, total_price, discount, delivery_charge, grand_total)
-    save_to_csv(items, discount, grand_total, customer_info['payment_method'], unique_code)
-    return pdf_file
-
+# Streamlit app
 def main():
     st.title("Ready to Cook by 'NILA'")
+    load_data()
 
-    page = st.sidebar.selectbox("Choose a page", ["Home", "Make Bill", "Customer Profile", "Settings"])
+    # Sidebar for navigation
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to", ["Home", "Make Bill", "Customer Profiles", "Settings"])
 
     if page == "Home":
-        st.write("Welcome to 'Ready to Cook by NILA'!")
-        st.image("RCN.jpg", width=300)
+        st.header("Welcome to Ready to Cook by 'NILA'")
+        st.image("path/to/your/image.jpg", use_column_width=True)
+        st.write("Please use the sidebar to navigate through the options.")
     
     elif page == "Make Bill":
         st.header("Make a Bill")
-        
-        date = st.date_input("Date", datetime.today())
-        customer_name = st.text_input("Customer Name")
-        customer_mobile = st.text_input("Customer Mobile Number")
-        customer_address = st.text_input("Customer Address")
-        unique_code = st.text_input("Customer Unique Code")
-        
+        bill_number = get_next_bill_number()
+        st.write(f"Bill Number: {bill_number}")
+
+        customer_info = {}
+        customer_info['date'] = st.date_input("Date", datetime.today())
+        customer_info['name'] = st.text_input("Customer Name")
+        customer_info['mobile'] = st.text_input("Customer Mobile Number")
+        customer_info['address'] = st.text_input("Customer Address")
+        customer_info['unique_code'] = st.text_input("Customer Unique Code")
+
+        # Item entry
+        st.subheader("Add Items")
         category = st.selectbox("Category", list(categories.keys()))
-        items = categories.get(category, [])
-        item_name = st.selectbox("Item Name", items)
-        unit_price = st.number_input("Unit Price", min_value=0.0, step=0.01)
-        quantity = st.number_input("Quantity", min_value=0.0, step=1.0)
-        item_total = unit_price * quantity
+        item = st.selectbox("Item", categories.get(category, []))
+        unit_price = st.number_input("Unit Price", min_value=0.0, format="%f")
+        quantity = st.number_input("Quantity", min_value=0.0, format="%f")
 
-        add_item_button = st.button("Add Item")
+        if st.button("Add Item"):
+            total_price = unit_price * quantity
+            items.append([customer_info['date'], customer_info['mobile'], customer_info['address'], category, item, unit_price, quantity, total_price])
+            st.success(f"Added {quantity} of {item} to the bill.")
 
-        if 'items_list' not in st.session_state:
-            st.session_state.items_list = []
+        # Display items
+        if items:
+            st.subheader("Items")
+            df_items = pd.DataFrame(items, columns=["Date", "Mobile", "Address", "Category", "Item", "Unit Price", "Quantity", "Total Price"])
+            st.table(df_items)
 
-        if add_item_button:
-            st.session_state.items_list.append([category, item_name, unit_price, quantity, item_total])
-            st.success(f"Added {item_name} to the list")
+            # Calculate totals
+            subtotal = sum(item[7] for item in items)
+            discount = st.number_input("Discount (%)", min_value=0.0, max_value=100.0, format="%f")
+            discount_amount = subtotal * (discount / 100)
+            delivery_charge = st.number_input("Delivery Charge", min_value=0.0, format="%f")
+            payment_method = st.selectbox("Payment Method", ["COD", "bKash", "Nagad", "Card"])
+            grand_total = subtotal - discount_amount + delivery_charge
 
-        discount = st.number_input("Discount (%)", min_value=0.0, max_value=100.0, step=0.01)
-        delivery_charge = st.number_input("Delivery Charge", min_value=0.0, step=0.01)
-        payment_method = st.selectbox("Payment Method", ["Bkash", "Nagad", "Rocket", "Upay", "COD"])
-
-        if st.session_state.items_list:
-            st.write("Items in the Bill:")
-            items_df = pd.DataFrame(
-                st.session_state.items_list,
-                columns=["Category", "Item Name", "Unit Price", "Quantity", "Total Price"]
-            )
-            st.write(items_df)
-
-            total_price = sum(item[4] for item in st.session_state.items_list)
-            st.write(f"Total Price: {total_price:.2f} Tk")
-
-            discount_amount = (discount / 100) * total_price
-            grand_total = total_price - discount_amount + delivery_charge
-            st.write(f"Grand Total: {grand_total:.2f} Tk")
-
-        if st.button("Generate Bill"):
-            bill_number = get_next_bill_number()
-            customer_info = {
-                'date': str(date),
-                'name': customer_name,
-                'mobile': customer_mobile,
-                'address': customer_address,
-                'unique_code': unique_code,
-                'payment_method': payment_method
+            totals = {
+                "subtotal": subtotal,
+                "discount": discount_amount,
+                "delivery_charge": delivery_charge,
+                "payment_method": payment_method,
+                "grand_total": grand_total
             }
-            pdf_file = save_bill_and_data(
-                bill_number, customer_info, st.session_state.items_list, total_price, discount, delivery_charge, grand_total
-            )
-            st.success(f"Bill generated successfully! Bill Number: {bill_number}")
-            st.write("Download the bill PDF from the link below:")
-            with open(pdf_file, "rb") as file:
-                btn = st.download_button(
-                    label="Download Bill PDF",
-                    data=file,
-                    file_name=pdf_file,
-                    mime="application/pdf"
-                )
 
-    elif page == "Customer Profile":
-        st.header("Customer Profile")
+            st.subheader("Totals")
+            st.write(f"Subtotal: {subtotal} Tk")
+            st.write(f"Discount: {discount_amount} Tk")
+            st.write(f"Delivery Charge: {delivery_charge} Tk")
+            st.write(f"Grand Total: {grand_total} Tk")
+
+            if st.button("Save Bill and Data"):
+                pdf_file = generate_pdf(bill_number, customer_info, items, totals)
+                save_to_csv(items, totals, customer_info)
+                st.success(f"Bill saved as {pdf_file} and data saved to CSV.")
+                items.clear()
+
+    elif page == "Customer Profiles":
+        st.header("Customer Profiles")
         unique_code = st.text_input("Enter Customer Unique Code")
-
-        if st.button("Load Profile"):
-            customers_data = {}
-            if os.path.exists('customers.json'):
-                try:
-                    with open('customers.json', 'r', encoding='utf-8') as file:
-                        customers_data = json.load(file)
-                except json.JSONDecodeError:
-                    st.warning("The customer data file is empty or corrupted!")
-                    customers_data = {}
-            
-            if unique_code in customers_data:
-                customer_info = customers_data[unique_code]
-                st.write("Customer Information")
-                st.write(f"Name: {customer_info['name']}")
-                st.write(f"Mobile Number: {customer_info['mobile']}")
-                st.write(f"Address: {customer_info['address']}")
-                st.write(f"Total Spend: {customer_info.get('total_spend', 0)} Tk")
+        
+        if st.button("Search"):
+            customers_data = load_customers()
+            customer = customers_data.get(unique_code)
+            if customer:
+                st.write(f"Date: {customer['date']}")
+                st.write(f"Name: {customer['name']}")
+                st.write(f"Mobile: {customer['mobile']}")
+                st.write(f"Address: {customer['address']}")
+                st.write(f"Total Spend: {customer['total_spend']}")
             else:
-                st.warning("Customer not found!")
+                st.error("Customer not found!")
 
     elif page == "Settings":
         st.header("Settings")
-        
-        category = st.text_input("Category Name")
-        item_name = st.text_input("Item Name")
+        st.subheader("Manage Categories and Items")
 
-        if st.button("Add Item to Category"):
-            if category in categories:
-                categories[category].append(item_name)
-            else:
-                categories[category] = [item_name]
-            save_data()
-            st.success(f"Added {item_name} to {category}")
+        # Add category
+        new_category = st.text_input("Add Category")
+        if st.button("Add Category"):
+            if new_category:
+                categories[new_category] = []
+                save_data()
+                st.success(f"Category '{new_category}' added.")
 
-        st.write("Current Categories and Items")
-        st.write(categories)
+        # Remove category
+        remove_category = st.selectbox("Remove Category", list(categories.keys()))
+        if st.button("Remove Category"):
+            if remove_category:
+                del categories[remove_category]
+                save_data()
+                st.success(f"Category '{remove_category}' removed.")
+
+        # Add item to category
+        selected_category = st.selectbox("Select Category to Add Item", list(categories.keys()))
+        new_item = st.text_input("Add Item to Selected Category")
+        if st.button("Add Item"):
+            if new_item:
+                categories[selected_category].append(new_item)
+                save_data()
+                st.success(f"Item '{new_item}' added to category '{selected_category}'.")
 
 if __name__ == "__main__":
+    items = []
     main()
