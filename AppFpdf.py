@@ -223,17 +223,6 @@ def main():
                     st.warning("At least one item must be selected.")
                 elif subtotal == 0:
                     st.warning("Subtotal must be greater than zero.")
-                else:
-                    pdf_buffer = generate_pdf(bill_number, customer_info, items, subtotal, discount, delivery_charge, grand_total, payment_method)
-                    save_to_csv(items, discount, grand_total, payment_method, customer_info["unique_code"])
-                    save_customer_info(customer_info["unique_code"], customer_info)
-                    st.success(f"Bill generated!")
-                    st.download_button(
-                        label="Download PDF",
-                        data=pdf_buffer,
-                        file_name=f'bill_{bill_number}_{customer_info["mobile"]}.pdf',
-                        mime="application/pdf"
-                    )
 
     elif menu_choice == "Customers Profile":
         st.header("Customers Profile")
