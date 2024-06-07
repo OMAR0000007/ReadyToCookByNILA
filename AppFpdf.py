@@ -120,8 +120,8 @@ def generate_pdf(bill_number, customer_info, items, subtotal, discount, delivery
     insert_text(page, "THANK YOU!!!", (250, 690))
 
     # Add the logo image
-    logo_path = "C:\\Users\\new\\Desktop\\Projects\\READY to COOK by NILA\\icons\\RCN.jpg"
-    qr_path = "C:\\Users\\new\\Desktop\\Projects\\READY to COOK by NILA\\icons\\qr.jpg"
+    logo_path = "RCN.jpg"
+    qr_path = "qr.jpg"
     try:
         logo_rect = fitz.Rect(30, 5, 130, 105)
         page.insert_image(logo_rect, filename=logo_path)
@@ -171,7 +171,7 @@ def main():
     menu_choice = st.sidebar.selectbox("Choose an option", menu_options)
     
     if menu_choice == "Home":
-        st.image("C:\\Users\\new\\Desktop\\Projects\\READY to COOK by NILA\\icons\\RCN.jpg")
+        st.image("RCN.jpg")
         st.write("Welcome to Ready to Cook by 'NILA'")
     
     elif menu_choice == "Make Bill":
