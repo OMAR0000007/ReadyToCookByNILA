@@ -134,6 +134,15 @@ def generate_pdf(bill_number, customer_info, items, subtotal, discount, delivery
     document.save(pdf_file)
     return pdf_file
 
+# Generate PDF file
+pdf_file_path = generate_pdf()
+
+# Display download button
+st.markdown(
+    f'<a href="data:application/pdf;base64,{pdf_file_path}" download="generated_pdf.pdf">Download PDF</a>',
+    unsafe_allow_html=True
+)
+
 # Save to CSV
 def save_to_csv(items, discount, grand_total, payment_method, unique_code):
     file_exists = os.path.exists('sales_data.csv')
